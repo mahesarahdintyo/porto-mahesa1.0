@@ -16,27 +16,39 @@ export class Petal {
   rotationSpeed: number
   swayOffset: number
   swaySpeed: number
+  flip: number
+  flipSpeed: number
   depth: number
   wilted: boolean
 
   constructor(width: number, height: number) {
     this.x = Math.random() * width
-    this.y = Math.random() * height - height
-    this.depth = 0.4 + Math.random() * 0.6
-    this.size = (6 + Math.random() * 10) * this.depth
-    this.baseVx = (Math.random() - 0.5) * 0.4
-    this.baseVy = (0.3 + Math.random() * 0.6) * this.depth
+    // Distribute across entire screen height initially so petals are visible immediately
+    this.y = Math.random() * height
+    this.depth = 0.5 + Math.random() * 0.5
+    this.size = (8 + Math.random() * 10) * this.depth
+    this.baseVx = 0.15 + (Math.random() - 0.5) * 0.4
+    this.baseVy = (0.6 + Math.random() * 0.8) * this.depth
     this.vx = this.baseVx
     this.vy = this.baseVy
     this.rotation = Math.random() * Math.PI * 2
     this.rotationSpeed = (Math.random() - 0.5) * 0.02
     this.swayOffset = Math.random() * Math.PI * 2
     this.swaySpeed = 0.4 + Math.random() * 0.6
-    this.wilted = Math.random() < 0.2
+    this.flip = Math.random() * Math.PI * 2
+    this.flipSpeed = 0.015 + Math.random() * 0.03
+    this.wilted = Math.random() < 0.25
   }
 
-  update(width: number, height: number, time: number, pointer: PointerState, speedMultiplier: number) {
-    const sway = Math.sin(time * 0.001 * this.swaySpeed + this.swayOffset) * 0.3
+  update(
+    width: number,
+    height: number,
+    time: number,
+    pointer: PointerState,
+    speedMultiplier: number,
+    dt: number = 1,
+  ) {
+    const sway = Math.sin(time * 0.001 * this.swaySpeed + this.swayOffset) * 0.4
     let targetVx = this.baseVx + sway
     let targetVy = this.baseVy
 
@@ -44,7 +56,7 @@ export class Petal {
       const dx = this.x - pointer.x
       const dy = this.y - pointer.y
       const distSq = dx * dx + dy * dy
-      const radius = 130
+      const radius = 140
       if (distSq < radius * radius && distSq > 0.01) {
         const dist = Math.sqrt(distSq)
         const force = (1 - dist / radius) * 2.8
@@ -56,33 +68,43 @@ export class Petal {
       }
     }
 
-    this.vx += (targetVx - this.vx) * 0.08
-    this.vy += (targetVy - this.vy) * 0.08
-    this.rotationSpeed *= 0.98
+    const ease = Math.min(1, 0.08 * dt)
+    this.vx += (targetVx - this.vx) * ease
+    this.vy += (targetVy - this.vy) * ease
+    this.rotationSpeed *= Math.pow(0.98, dt)
 
-    this.x += this.vx * speedMultiplier
-    this.y += this.vy * speedMultiplier
-    this.rotation += this.rotationSpeed
+    this.x += this.vx * speedMultiplier * dt
+    this.y += this.vy * speedMultiplier * dt
+    this.rotation += this.rotationSpeed * dt
+    this.flip += this.flipSpeed * speedMultiplier * dt
 
-    if (this.y > height + 40) {
-      this.y = -40
+    // Reset when exiting viewport
+    if (this.y > height + 25) {
+      this.y = -25
       this.x = Math.random() * width
     }
-    if (this.x < -40) this.x = width + 40
-    if (this.x > width + 40) this.x = -40
+    if (this.x < -30) this.x = width + 30
+    if (this.x > width + 30) this.x = -30
   }
 
   draw(ctx: CanvasRenderingContext2D, colorAccent: string, colorSoft: string, opacity: number) {
     ctx.save()
     ctx.translate(this.x, this.y)
     ctx.rotate(this.rotation)
-    ctx.globalAlpha = opacity * (this.wilted ? 0.5 : 0.85)
+
+    // Realistic 3D leaf/petal tumbling flutter
+    const flipScale = Math.cos(this.flip)
+    ctx.scale(1, flipScale)
+
+    ctx.globalAlpha = opacity * (this.wilted ? 0.6 : 0.88) * (0.55 + 0.45 * Math.abs(flipScale))
     const w = this.size
-    const h = this.size * 0.75
+    const h = this.size * 0.8
+
     ctx.beginPath()
     ctx.moveTo(0, -h)
-    ctx.bezierCurveTo(w, -h, w, h * 0.4, 0, h)
-    ctx.bezierCurveTo(-w, h * 0.4, -w, -h, 0, -h)
+    // Delicate sakura petal profile with curved edges
+    ctx.bezierCurveTo(w * 1.15, -h * 0.7, w * 0.9, h * 0.5, 0, h)
+    ctx.bezierCurveTo(-w * 0.9, h * 0.5, -w * 1.15, -h * 0.7, 0, -h)
     ctx.fillStyle = this.wilted ? colorSoft : colorAccent
     ctx.fill()
     ctx.restore()
@@ -110,9 +132,9 @@ export class AshParticle {
     this.isEmber = isEmber
   }
 
-  update(width: number, height: number, time: number) {
-    this.x += this.vx + Math.sin(time * 0.0006 + this.opacityJitter) * 0.1
-    this.y += this.vy
+  update(width: number, height: number, time: number, dt: number = 1) {
+    this.x += (this.vx + Math.sin(time * 0.0006 + this.opacityJitter) * 0.1) * dt
+    this.y += this.vy * dt
 
     if (this.y < -20) {
       this.y = height + 20

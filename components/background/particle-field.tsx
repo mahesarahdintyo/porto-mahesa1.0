@@ -78,31 +78,35 @@ export function ParticleField({ blendRef }: ParticleFieldProps) {
     function frame(now: number) {
       rafId = requestAnimationFrame(frame)
       if (!visible || !ctx) return
+
       const delta = now - lastTime
       lastTime = now
-      if (delta < 8) return
+      // Clamp delta safely between 1ms and 64ms (prevents physics explosion on tab-switch/lag)
+      const safeDelta = Math.min(Math.max(delta, 1), 64)
+      const dt = safeDelta / 16.67
 
       const blend = blendRef.current ?? 0
       const sakuraOpacity = 1 - blend
       const kuroOpacity = blend
-      const speedMultiplier = reducedMotion ? 0 : 1
+      // Under reduced motion, drift very subtly instead of being frozen off-screen
+      const speedMultiplier = reducedMotion ? 0.2 : 1
 
       ctx.clearRect(0, 0, width, height)
 
       if (sakuraOpacity > 0.01) {
         for (const petal of petals) {
-          if (!reducedMotion) petal.update(width, height, now, pointer, speedMultiplier)
-          petal.draw(ctx, '#b83b4b', '#d98792', sakuraOpacity)
+          petal.update(width, height, now, pointer, speedMultiplier, dt)
+          petal.draw(ctx, '#c84358', '#e88998', sakuraOpacity)
         }
       }
 
       if (kuroOpacity > 0.01) {
         for (const particle of ash) {
-          if (!reducedMotion) particle.update(width, height, now)
+          particle.update(width, height, now, dt * speedMultiplier)
           particle.draw(ctx, now, kuroOpacity)
         }
         for (const particle of embers) {
-          if (!reducedMotion) particle.update(width, height, now)
+          particle.update(width, height, now, dt * speedMultiplier)
           particle.draw(ctx, now, kuroOpacity)
         }
       }
